@@ -1,0 +1,90 @@
+cabal-version:      3.0
+name:               auction-service
+version:            0.1.0.0
+license:            MIT
+license-file:       LICENSE
+author:             NorihitoN
+maintainer:         norihito0626@gmail.com
+build-type:         Simple
+extra-doc-files:    CHANGELOG.md
+
+common warnings
+    ghc-options: -Wall -Wcompat -Wincomplete-record-updates
+                 -Wincomplete-uni-patterns -Wredundant-constraints
+
+common rts-opts
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+
+common extensions
+    default-extensions:
+        OverloadedStrings
+        DeriveGeneric
+        GeneralizedNewtypeDeriving
+
+library
+    import:           warnings, extensions
+    exposed-modules:
+        Domain.Types
+        Domain.Error
+        App.Monad
+        App.Env
+        State.AppState
+        Api.Types
+        Api.Handler.User
+        Api.Handler.Item
+        Api.Handler.Auction
+    hs-source-dirs:   src
+    default-language: Haskell2010
+    build-depends:
+        base              ^>=4.18.3.0,
+        aeson             >=2.0,
+        text              >=1.2,
+        bytestring        >=0.11,
+        time              >=1.9,
+        uuid              >=1.3,
+        stm               >=2.5,
+        async             >=2.2,
+        mtl               >=2.2,
+        containers        >=0.6,
+        servant           >=0.20,
+        servant-server    >=0.20,
+        wai               >=3.2,
+        warp              >=3.3
+
+executable auction-server
+    import:           warnings, rts-opts, extensions
+    main-is:          Main.hs
+    hs-source-dirs:   app
+    default-language: Haskell2010
+    build-depends:
+        base              ^>=4.18.3.0,
+        auction-service
+
+executable auction-client
+    import:           warnings, rts-opts, extensions
+    main-is:          Client.hs
+    hs-source-dirs:   app
+    default-language: Haskell2010
+    build-depends:
+        base              ^>=4.18.3.0,
+        aeson             >=2.0,
+        text              >=1.2,
+        bytestring        >=0.11,
+        http-client       >=0.7,
+        http-client-tls   >=0.3,
+        http-types        >=0.12
+
+test-suite auction-service-test
+    import:           warnings, extensions
+    type:             exitcode-stdio-1.0
+    main-is:          Spec.hs
+    hs-source-dirs:   test
+    default-language: Haskell2010
+    other-modules:
+        Domain.TypesSpec
+        State.BidSpec
+    build-depends:
+        base              ^>=4.18.3.0,
+        auction-service,
+        hspec             >=2.10,
+        QuickCheck        >=2.14

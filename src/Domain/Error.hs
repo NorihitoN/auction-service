@@ -1,0 +1,1 @@
+module Domain.Error where
