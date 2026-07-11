@@ -2,7 +2,7 @@ module App.Supervisor where
 
 import Control.Concurrent.Async (async, cancel, waitCatch)
 import Control.Concurrent.STM (TQueue, atomically, writeTQueue)
-import Control.Exception (mask)
+import Control.Exception (finally, mask)
 import Data.Text (Text)
 import qualified Data.Text as T
 
@@ -24,7 +24,7 @@ supervisor queue action = do
       result <- mask $ \restore -> do
         result <- do
           as <- async (restore action)
-          waitCatch as `finally'` cancel as
+          waitCatch as `finally` cancel as
         case result of
           Left e  -> atomically $ writeTQueue queue $
             "SUPERVISOR: catch exception: " <> T.pack (show e)
@@ -36,9 +36,3 @@ supervisor queue action = do
           loop
         Right _ -> return ()
 
--- cancel を確実に呼ぶための bracket 相当
-finally' :: IO a -> IO b -> IO a
-finally' action cleanup = do
-  result <- action
-  _ <- cleanup
-  return result

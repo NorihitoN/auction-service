@@ -11,6 +11,7 @@ import Control.Concurrent.STM
   , TQueue
   )
 import Control.Exception (throwIO)
+import Control.Monad (void)
 import qualified Data.HashMap.Strict as M
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -156,14 +157,15 @@ evalAuction state (SellToAuction uid iid term startPrice) = do
               putTMVar (currentAuctionItem state) ai'
               toAuctionItem ai'
 
-evalAuction state (ViewAuctionItem aid) = do
-  mAi' <- atomically $ tryReadTMVar (currentAuctionItem state)
-  case mAi' of
-    Nothing  -> return Nothing
-    Just ai' ->
-      if auctionItem'Id ai' == aid
-        then Just <$> atomically (toAuctionItem ai')
-        else return Nothing
+evalAuction state (ViewAuctionItem aid) =
+  atomically $ do
+    mAi' <- tryReadTMVar (currentAuctionItem state)
+    case mAi' of
+      Nothing  -> return Nothing
+      Just ai' ->
+        if auctionItem'Id ai' == aid
+          then Just <$> toAuctionItem ai'
+          else return Nothing
 
 evalAuction state (Bid uid aid bidPrice) = do
   tBidder     <- getUser state uid
@@ -182,17 +184,21 @@ evalAuction state (Bid uid aid bidPrice) = do
               else if bidPrice <= auctionItem'CurrentPrice ai'
                 then throwSTM BidTooLow
                 else do
-                  bidder <- readTVar tBidder
-                  if userMoney bidder < bidPrice
-                    then throwSTM NotEnoughMoney
+                  seller <- readTVar (auctionItem'Seller ai')
+                  if userId seller == uid
+                    then throwSTM SellerCannotBid
                     else do
-                      _ <- takeTMVar (currentAuctionItem state)
-                      let ai'' = ai'
-                            { auctionItem'CurrentPrice = bidPrice
-                            , auctionItem'CurrentUser  = Just tBidder
-                            }
-                      putTMVar (currentAuctionItem state) ai''
-                      toAuctionItem ai''
+                      bidder <- readTVar tBidder
+                      if userMoney bidder < bidPrice
+                        then throwSTM NotEnoughMoney
+                        else do
+                          _ <- takeTMVar (currentAuctionItem state)
+                          let ai'' = ai'
+                                { auctionItem'CurrentPrice = bidPrice
+                                , auctionItem'CurrentUser  = Just tBidder
+                                }
+                          putTMVar (currentAuctionItem state) ai''
+                          toAuctionItem ai''
 
 -- ============================================================
 -- facilitator — オークション終了タイマー（1秒ごとにチェック）
@@ -217,7 +223,7 @@ handleFinishedAuctionItem queue state = do
         if currentTime < endTime (auctionItem'Term ai')
           then writeTQueue queue "FACILITATOR: Auction holds"
           else do
-            void' $ takeTMVar (currentAuctionItem state)
+            void $ takeTMVar (currentAuctionItem state)
             case auctionItem'CurrentUser ai' of
               Just tWinner -> do
                 -- winner の所持金を減らしアイテムを渡す
@@ -235,6 +241,3 @@ handleFinishedAuctionItem queue state = do
                 addItemToUser (auctionItem'Seller ai') (auctionItem'TargetItem ai')
                 writeTQueue queue "FACILITATOR: Auction finished with no bidder"
 
--- STM 内で値を捨てるためのヘルパー
-void' :: STM a -> STM ()
-void' stm = stm >> return ()

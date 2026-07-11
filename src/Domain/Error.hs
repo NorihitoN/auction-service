@@ -19,7 +19,6 @@ data AppError
   | InvalidPrice
   | InvalidUserUpdate
   | NotEnoughMoney
-  | NoEnoughMoney
   | BadData Text
   | UnknownError
   deriving (Eq, Show, Typeable)
